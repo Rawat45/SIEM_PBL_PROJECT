@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SIEM Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2f;
+            --panel-bg: #272741;
+            --text-color: #eee;
+            --accent-color: #4fc3f7;
+            --border-color: #444;
+            --hover-color: #2e2e40;
+            --critical-color: #d32f2f;
+            --error-color: #f44336;
+            --warning-color: #ff9800;
+            --info-color: #2196f3;
+            --debug-color: #7e57c2;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            padding: 0;
+            margin: 0;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background-color: #1a1a2e;
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        main {
+            display: flex;
+            padding: 20px;
+            flex: 1;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .sidebar {
+            flex: 0 0 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .main-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        input[type="text"], select, button { 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            border: 1px solid var(--border-color); 
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-color);
+            margin-right: 5px;
+        }
+        
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+        }
+        
+        button {
+            background-color: var(--accent-color);
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+        
+        button:hover {
+            background-color: #81d4fa;
+        }
+        
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        th, td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--border-color); 
+        }
+        
+        th { 
+            background-color: rgba(0, 0, 0, 0.2); 
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        tbody tr:hover { 
+            background-color: var(--hover-color); 
+        }
+        
+        a { 
+            color: var(--accent-color); 
+            text-decoration: none; 
+            transition: color 0.2s ease;
+        }
+        
+        a:hover { 
+            color: #81d4fa; 
+            text-decoration: underline; 
+        }
+        
+        .filters-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .filter-label {
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        
+        .log-severity-critical {
+            border-left: 4px solid var(--critical-color);
+        }
+        
+        .log-severity-error {
+            border-left: 4px solid var(--error-color);
+        }
+        
+        .log-severity-warning {
+            border-left: 4px solid var(--warning-color);
+        }
+        
+        .log-severity-info {
+            border-left: 4px solid var(--info-color);
+        }
+        
+        .log-severity-debug {
+            border-left: 4px solid var(--debug-color);
+        }
+        
+        .recent-alerts {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .alert-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .alert-item:last-child {
+            border-bottom: none;
+        }
+        
+        .alert-time {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        
+        .alert-high {
+            color: #ff5252;
+            font-weight: bold;
+        }
+        
+        .alert-medium {
+            color: #ffab40;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online {
+            background-color: #4caf50;
+        }
+        
+        .status-offline {
+            background-color: #f44336;
+        }
+        
+        .search-highlight {
+            background-color: rgba(255, 235, 59, 0.3);
+            padding: 2px;
+            border-radius: 2px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .nav-link {
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            text-decoration: none;
+        }
+        
+        .realtime-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--accent-color);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        @media (max-width: 1200px) {
+            main {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                flex: 0 0 auto;
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .filters-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-group {
+                width: 100%;
+            }
+            
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .nav-links {
+                width: 100%;
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; background-color: #4fc3f7; }
+            to { opacity: 1; background-color: transparent; }
+        }
+        
+        .new-log {
+            animation: fadeIn 1.5s;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SIEM Log Dashboard</h1>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/alerts" class="nav-link">Alerts</a>
+            <a href="/anomalies" class="nav-link">Anomalies</a>
+        </div>
+    </div>
+
+    <main>
+        <div class="main-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">System Logs</h2>
+                </div>
+                
+                <form class="filters-form" method="GET" action="/">
+                    <div class="filter-group">
+                        <span class="filter-label">Search:</span>
+                        <input type="text" name="search" placeholder="Search logs..." />
+                    </div>
+                    
+                    <div class="filter-group">
+                        <span class="filter-label">Severity:</span>
+                        <select name="severity">
+                            <option value="">All Severities</option>
+                            <option value="CRITICAL">Critical</option>
+                            <option value="ERROR">Error</option>
+                            <option value="WARNING">Warning</option>
+                            <option value="INFO">Info</option>
+                            <option value="DEBUG">Debug</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <span class="filter-label">Source:</span>
+                        <select name="source">
+                            <option value="">All Sources</option>
+                            <option value="firewall">Firewall</option>
+                            <option value="ids">IDS</option>
+                            <option value="server">Server</option>
+                            <option value="auth">Authentication</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <span class="filter-label">Time Range:</span>
+                        <select name="timerange">
+                            <option value="1h">Last Hour</option>
+                            <option value="6h">Last 6 Hours</option>
+                            <option value="24h" selected>Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit">Apply Filters</button>
+                    <button type="reset">Reset</button>
+                </form>
+                
+                <div class="realtime-toggle">
+                    <span>Real-time Updates:</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="realtime-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="logs-table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Severity</th>
+                                <th>Source</th>
+                                <th>Message</th>
+                                <th>IP Address</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            <tr class="log-severity-critical">
+                                <td>2025-05-21 08:45:22</td>
+                                <td>CRITICAL</td>
+                                <td>Firewall</td>
+                                <td>Multiple failed connection attempts detected</td>
+                                <td>203.0.113.42</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                            <tr class="log-severity-error">
+                                <td>2025-05-21 08:44:17</td>
+                                <td>ERROR</td>
+                                <td>Authentication</td>
+                                <td>Failed login attempt for user admin</td>
+                                <td>192.168.1.105</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                            <tr class="log-severity-warning">
+                                <td>2025-05-21 08:42:53</td>
+                                <td>WARNING</td>
+                                <td>IDS</td>
+                                <td>Suspicious network traffic detected</td>
+                                <td>198.51.100.75</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                            <tr class="log-severity-info">
+                                <td>2025-05-21 08:40:12</td>
+                                <td>INFO</td>
+                                <td>Server</td>
+                                <td>System backup completed successfully</td>
+                                <td>10.1.1.5</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                            <tr class="log-severity-debug">
+                                <td>2025-05-21 08:38:44</td>
+                                <td>DEBUG</td>
+                                <td>Application</td>
+                                <td>User session initialized</td>
+                                <td>192.168.1.110</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                            <tr class="log-severity-error">
+                                <td>2025-05-21 08:35:01</td>
+                                <td>ERROR</td>
+                                <td>Server</td>
+                                <td>Database connection timeout</td>
+                                <td>10.1.1.8</td>
+                                <td><a href="#" class="log-details-link">Details</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" style="margin-top: 20px; text-align: center;">
+                    <a href="#" class="page-link">&laquo; Previous</a>
+                    <span class="page-info">Page 1 of 5</span>
+                    <a href="#" class="page-link">Next &raquo;</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Recent Alerts</h2>
+                </div>
+                
+                <ul class="recent-alerts">
+                    <li class="alert-item">
+                        <div class="alert-high">Brute Force Attack Detected</div>
+                        <div>Multiple failed login attempts from 203.0.113.42</div>
+                        <div class="alert-time">2025-05-21 08:45:22</div>
+                    </li>
+                    <li class="alert-item">
+                        <div class="alert-medium">Suspicious Traffic</div>
+                        <div>Unusual data transfer pattern from 198.51.100.75</div>
+                        <div class="alert-time">2025-05-21 08:42:53</div>
+                    </li>
+                    <li class="alert-item">
+                        <div class="alert-high">Critical Service Failure</div>
+                        <div>Database service not responding</div>
+                        <div class="alert-time">2025-05-21 08:35:01</div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">System Status</h2>
+                </div>
+                
+                <div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="status-indicator status-online"></span>
+                        <span>Firewall: Online</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="status-indicator status-online"></span>
+                        <span>IDS/IPS: Online</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="status-indicator status-online"></span>
+                        <span>Primary Server: Online</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="status-indicator status-offline"></span>
+                        <span>Database Server: Offline</span>
+                    </div>
+                    <div>
+                        <span class="status-indicator status-online"></span>
+                        <span>Log Collection: Online</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Event Summary</h2>
+                </div>
+                
+                <div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Critical:</span>
+                        <span>3</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Error:</span>
+                        <span>12</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Warning:</span>
+                        <span>45</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Info:</span>
+                        <span>187</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Debug:</span>
+                        <span>324</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // JavaScript for Real-time updates and functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const realtimeToggle = document.getElementById('realtime-toggle');
+            let realtimeUpdatesEnabled = realtimeToggle.checked;
+            
+            realtimeToggle.addEventListener('change', function() {
+                realtimeUpdatesEnabled = this.checked;
+                console.log('Real-time updates:', realtimeUpdatesEnabled ? 'enabled' : 'disabled');
+            });
+            
+            // Sample function to simulate new log entries
+            function addNewLogEntry() {
+                if (!realtimeUpdatesEnabled) return;
+                
+                const logsTableBody = document.getElementById('logs-table-body');
+                const severities = ['critical', 'error', 'warning', 'info', 'debug'];
+                const sources = ['Firewall', 'IDS', 'Server', 'Authentication', 'Application'];
+                const messages = [
+                    'User login successful',
+                    'Failed authentication attempt',
+                    'Network connection established',
+                    'File access denied',
+                    'Configuration updated'
+                ];
+                
+                // Generate random data
+                const severity = severities[Math.floor(Math.random() * severities.length)];
+                const source = sources[Math.floor(Math.random() * sources.length)];
+                const message = messages[Math.floor(Math.random() * messages.length)];
+                
+                // Generate random IP address
+                const ip = `192.168.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
+                
+                // Get current time
+                const now = new Date();
+                const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+                
+                // Create new row
+                const newRow = document.createElement('tr');
+                newRow.className = `log-severity-${severity} new-log`;
+                
+                newRow.innerHTML = `
+                    <td>${timestamp}</td>
+                    <td>${severity.toUpperCase()}</td>
+                    <td>${source}</td>
+                    <td>${message}</td>
+                    <td>${ip}</td>
+                    <td><a href="#" class="log-details-link">Details</a></td>
+                `;
+                
+                // Insert at the top of the table
+                logsTableBody.insertBefore(newRow, logsTableBody.firstChild);
+                
+                // Remove oldest entry if table gets too long
+                if (logsTableBody.children.length > 50) {
+                    logsTableBody.removeChild(logsTableBody.lastChild);
+                }
+            }
+            
+            // Simulate real-time updates every 5-10 seconds
+            function scheduleNextUpdate() {
+                const delay = 5000 + Math.random() * 5000; // 5-10 seconds
+                setTimeout(() => {
+                    addNewLogEntry();
+                    scheduleNextUpdate();
+                }, delay);
+            }
+            
+            scheduleNextUpdate();
+            
+            // Add event listeners for log detail links
+            document.querySelectorAll('.log-details-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    alert('Log details would open in a modal or new page');
+                });
+            });
+            
+            // Add functionality for search highlighting
+            const searchInput = document.querySelector('input[name="search"]');
+            searchInput.addEventListener('input', function() {
+                const searchText = this.value.toLowerCase();
+                if (searchText.length < 3) return; // Only search for 3+ characters
+                
+                document.querySelectorAll('#logs-table-body tr td:nth-child(4)').forEach(cell => {
+                    const text = cell.textContent;
+                    if (searchText && text.toLowerCase().includes(searchText)) {
+                        const highlighted = text.replace(
+                            new RegExp(searchText, 'gi'),
+                            match => `<span class="search-highlight">${match}</span>`
+                        );
+                        cell.innerHTML = highlighted;
+                    } else {
+                        cell.textContent = text; // Reset to original text without highlights
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

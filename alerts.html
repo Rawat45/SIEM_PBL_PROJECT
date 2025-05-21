@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SIEM Alerts</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #111; 
+            color: #eee; 
+            padding: 20px;
+            margin: 0;
+        }
+        .header {
+            background-color: #222;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            background: #222;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        th, td { 
+            padding: 12px; 
+            border: 1px solid #444;
+            text-align: left;
+        }
+        th { 
+            background: #333;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover { 
+            background-color: #2a2a2a; 
+        }
+        a { 
+            color: #4fc3f7; 
+            text-decoration: none; 
+        }
+        a:hover { 
+            text-decoration: underline; 
+        }
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .filters {
+            background-color: #222;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        select, button {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        select:hover, button:hover {
+            background-color: #444;
+        }
+        .severity-high {
+            background-color: rgba(211, 47, 47, 0.3);
+            border-left: 4px solid #d32f2f;
+        }
+        .severity-medium {
+            background-color: rgba(255, 152, 0, 0.3);
+            border-left: 4px solid #ff9800;
+        }
+        .severity-low {
+            background-color: rgba(255, 235, 59, 0.2);
+            border-left: 4px solid #ffeb3b;
+        }
+        .alert-icon {
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+        .no-alerts {
+            padding: 20px;
+            text-align: center;
+            background: #222;
+            border-radius: 8px;
+        }
+        @media (max-width: 768px) {
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            td, th {
+                padding: 8px;
+            }
+            .header h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>🚨 SIEM Alert Log</h2>
+        <div class="nav-links">
+            <a href="/">← Dashboard</a>
+            <a href="/anomalies">View Anomalies</a>
+        </div>
+    </div>
+
+    <div class="filters">
+        <form method="GET" action="/alerts">
+            <label for="time_range">Time Range:</label>
+            <select name="time_range" id="time_range" onchange="this.form.submit()">
+                <option value="1h" {% if time_range == "1h" %}selected{% endif %}>Last Hour</option>
+                <option value="6h" {% if time_range == "6h" %}selected{% endif %}>Last 6 Hours</option>
+                <option value="24h" {% if time_range == "24h" or not time_range %}selected{% endif %}>Last 24 Hours</option>
+                <option value="7d" {% if time_range == "7d" %}selected{% endif %}>Last 7 Days</option>
+                <option value="30d" {% if time_range == "30d" %}selected{% endif %}>Last 30 Days</option>
+            </select>
+            
+            <label for="severity">Severity:</label>
+            <select name="severity" id="severity" onchange="this.form.submit()">
+                <option value="">All Severities</option>
+                <option value="HIGH" {% if severity == "HIGH" %}selected{% endif %}>High</option>
+                <option value="MEDIUM" {% if severity == "MEDIUM" %}selected{% endif %}>Medium</option>
+                <option value="LOW" {% if severity == "LOW" %}selected{% endif %}>Low</option>
+            </select>
+        </form>
+    </div>
+
+    {% if alerts %}
+        <table id="alerts-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Message</th>
+                    <th>Source</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for timestamp, message, source, severity in alerts %}
+                    <tr class="severity-{{ severity|lower }}">
+                        <td>{{ timestamp }}</td>
+                        <td>
+                            {% if severity == "HIGH" %}
+                            <span class="alert-icon">⚠️</span>
+                            {% elif severity == "MEDIUM" %}
+                            <span class="alert-icon">⚠</span>
+                            {% endif %}
+                            {{ message }}
+                        </td>
+                        <td>{{ source }}</td>
+                        <td>{{ severity }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="no-alerts">
+            <p>No alerts found for the selected filters.</p>
+        </div>
+    {% endif %}
+
+    <script>
+        // Add real-time updates for alerts
+        let lastAlertId = 0;
+        
+        function updateAlerts() {
+            fetch(`/api/update_alerts?last_id=${lastAlertId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.alerts && data.alerts.length > 0) {
+                        const noAlertsMsg = document.querySelector('.no-alerts');
+                        if (noAlertsMsg) {
+                            noAlertsMsg.remove();
+                            
+                            // Create table if it doesn't exist
+                            if (!document.getElementById('alerts-table')) {
+                                const table = document.createElement('table');
+                                table.id = 'alerts-table';
+                                table.innerHTML = `
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Message</th>
+                                            <th>Source</th>
+                                            <th>Severity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                `;
+                                document.body.appendChild(table);
+                            }
+                        }
+                        
+                        const tableBody = document.querySelector('#alerts-table tbody');
+                        
+                        data.alerts.forEach(alert => {
+                            if (alert.id > lastAlertId) {
+                                lastAlertId = alert.id;
+                                
+                                const tr = document.createElement('tr');
+                                tr.className = `severity-${alert.severity.toLowerCase()}`;
+                                
+                                const alertIcon = alert.severity === "HIGH" ? 
+                                    '<span class="alert-icon">⚠️</span>' : 
+                                    alert.severity === "MEDIUM" ? 
+                                        '<span class="alert-icon">⚠</span>' : '';
+                                
+                                tr.innerHTML = `
+                                    <td>${alert.timestamp}</td>
+                                    <td>${alertIcon} ${alert.message}</td>
+                                    <td>${alert.source}</td>
+                                    <td>${alert.severity}</td>
+                                `;
+                                
+                                if (tableBody.firstChild) {
+                                    tableBody.insertBefore(tr, tableBody.firstChild);
+                                } else {
+                                    tableBody.appendChild(tr);
+                                }
+                                
+                                // Highlight new row
+                                tr.style.animation = 'fadeIn 1s';
+                            }
+                        });
+                    }
+                })
+                .catch(error => console.error('Error updating alerts:', error));
+        }
+        
+        // Update alerts every 5 seconds
+        setInterval(updateAlerts, 5000);
+    </script>
+</body>
+</html>

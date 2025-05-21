@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anomaly Report - SIEM System</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #1e1e2f; 
+            color: #eee; 
+            padding: 20px;
+            margin: 0;
+        }
+        .header {
+            background-color: #272741;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .alert { 
+            background-color: #d32f2f; 
+            color: white; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .alert:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        .alert.auth_failure { background-color: #e65100; }
+        .alert.suspicious_ip { background-color: #880e4f; }
+        .alert.event_spike { background-color: #4a148c; }
+        .alert-details {
+            font-size: 0.9em;
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .filters {
+            background-color: #272741;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        select, button {
+            background-color: #3a3a5a;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        select:hover, button:hover {
+            background-color: #4a4a6a;
+        }
+        a { 
+            color: #4fc3f7; 
+            text-decoration: none; 
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .count-badge {
+            background-color: #2196f3;
+            color: white;
+            border-radius: 12px;
+            padding: 3px 8px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+        .no-anomalies {
+            background-color: #272741;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .last-updated {
+            font-size: 0.8em;
+            color: #aaa;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @keyframes highlight {
+            0% { background-color: #ffd54f; }
+            100% { background-color: inherit; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Detected Anomalies</h1>
+        <div class="nav-links">
+            <a href="/">← Dashboard</a>
+            <a href="/alerts">View Alerts</a>
+        </div>
+    </div>
+
+    <div class="filters">
+        <form method="GET" action="/anomalies">
+            <label for="time_range">Time Range:</label>
+            <select name="time_range" id="time_range" onchange="this.form.submit()">
+                <option value="1h">Last Hour</option>
+                <option value="6h">Last 6 Hours</option>
+                <option value="24h" selected>Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+            </select>
+            
+            <label for="type">Anomaly Type:</label>
+            <select name="type" id="type" onchange="this.form.submit()">
+                <option value="">All Types</option>
+                <option value="auth_failure">Auth Failure</option>
+                <option value="suspicious_ip">Suspicious IP</option>
+                <option value="event_spike">Event Spike</option>
+            </select>
+        </form>
+    </div>
+
+    <div class="last-updated">Last updated: <span id="last-update">Loading...</span></div>
+
+    <div id="anomalies-container">
+        <!-- Anomalies will be dynamically loaded here -->
+        <div class="no-anomalies">
+            <p>No anomalies detected in the selected time range.</p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize with the latest anomaly ID or 0 if none exist
+        let lastAnomalyId = 0;
+
+        function updateLastUpdated() {
+            document.getElementById("last-update").textContent = new Date().toLocaleString();
+        }
+
+        function updateAnomalies() {
+            fetch(`/api/update_anomalies?last_id=${lastAnomalyId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.anomalies && data.anomalies.length > 0) {
+                        const anomaliesContainer = document.getElementById('anomalies-container');
+                        const noAnomaliesMsg = document.querySelector('.no-anomalies');
+                        
+                        // Remove "no anomalies" message if it exists
+                        if (noAnomaliesMsg) {
+                            noAnomaliesMsg.remove();
+                        }
+
+                        data.anomalies.forEach(anomaly => {
+                            if (anomaly.id > lastAnomalyId && !document.getElementById(`anomaly-${anomaly.id}`)) {
+                                lastAnomalyId = Math.max(lastAnomalyId, anomaly.id);
+
+                                const alertDiv = document.createElement('div');
+                                alertDiv.className = `alert ${anomaly.type}`;
+                                alertDiv.id = `anomaly-${anomaly.id}`;
+                                alertDiv.setAttribute('role', 'alert');
+                                alertDiv.setAttribute('aria-live', 'polite');
+
+                                alertDiv.innerHTML = `
+                                    <strong>${anomaly.time || anomaly.timestamp}:</strong> ${anomaly.message}
+                                    <div class="alert-details">
+                                        <span>Type: ${anomaly.type}</span>
+                                        <span>Count: <span class="count-badge">${anomaly.count}</span></span>
+                                        <span>First seen: ${anomaly.first_seen}</span>
+                                        <span>Last seen: ${anomaly.last_seen}</span>
+                                    </div>
+                                `;
+
+                                // Prepend new anomalies to the container
+                                const firstAlert = anomaliesContainer.querySelector('.alert');
+                                if (firstAlert) {
+                                    anomaliesContainer.insertBefore(alertDiv, firstAlert);
+                                } else {
+                                    anomaliesContainer.appendChild(alertDiv);
+                                }
+
+                                // Add highlight animation
+                                alertDiv.style.animation = 'highlight 2s';
+                            }
+                        });
+
+                        updateLastUpdated();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating anomalies:', error);
+                });
+        }
+
+        // Add sample data for demonstration purposes
+        function addSampleData() {
+            const sampleAnomalies = [
+                {
+                    id: 1,
+                    time: "2025-05-21 09:43:12",
+                    timestamp: "2025-05-21 09:43:12",
+                    message: "Multiple failed login attempts detected from IP 192.168.1.45",
+                    type: "auth_failure",
+                    count: 15,
+                    first_seen: "2025-05-21 09:35:22",
+                    last_seen: "2025-05-21 09:43:12"
+                },
+                {
+                    id: 2,
+                    time: "2025-05-21 08:12:05",
+                    timestamp: "2025-05-21 08:12:05",
+                    message: "Connection attempt from known malicious IP 45.62.118.99",
+                    type: "suspicious_ip",
+                    count: 3,
+                    first_seen: "2025-05-21 08:10:12",
+                    last_seen: "2025-05-21 08:12:05"
+                },
+                {
+                    id: 3,
+                    time: "2025-05-21 07:58:30",
+                    timestamp: "2025-05-21 07:58:30",
+                    message: "Unusual spike in authentication events (350% above baseline)",
+                    type: "event_spike",
+                    count: 87,
+                    first_seen: "2025-05-21 07:45:18",
+                    last_seen: "2025-05-21 07:58:30"
+                }
+            ];
+
+            // Simulate API response with sample data
+            const data = {
+                anomalies: sampleAnomalies
+            };
+
+            const anomaliesContainer = document.getElementById('anomalies-container');
+            const noAnomaliesMsg = document.querySelector('.no-anomalies');
+            
+            // Remove "no anomalies" message if it exists
+            if (noAnomaliesMsg) {
+                noAnomaliesMsg.remove();
+            }
+
+            // Process sample anomalies
+            data.anomalies.forEach(anomaly => {
+                lastAnomalyId = Math.max(lastAnomalyId, anomaly.id);
+
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert ${anomaly.type}`;
+                alertDiv.id = `anomaly-${anomaly.id}`;
+                alertDiv.setAttribute('role', 'alert');
+
+                alertDiv.innerHTML = `
+                    <strong>${anomaly.time}:</strong> ${anomaly.message}
+                    <div class="alert-details">
+                        <span>Type: ${anomaly.type}</span>
+                        <span>Count: <span class="count-badge">${anomaly.count}</span></span>
+                        <span>First seen: ${anomaly.first_seen}</span>
+                        <span>Last seen: ${anomaly.last_seen}</span>
+                    </div>
+                `;
+
+                anomaliesContainer.appendChild(alertDiv);
+            });
+        }
+
+        // Initialize time and update loop
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLastUpdated();
+            
+            // Add sample data for demonstration
+            addSampleData();
+            
+            // Set up periodic updates
+            setInterval(updateAnomalies, 10000);
+        });
+    </script>
+</body>
+</html>
