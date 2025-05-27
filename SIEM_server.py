@@ -1,3 +1,4 @@
+from ml_anomaly_detection import detect_unsupervised_anomalies
 from flask import Flask, request, render_template, redirect, jsonify
 import sqlite3
 import datetime
@@ -505,14 +506,26 @@ def anomalies():
         types=types,
         selected_type=anomaly_type
     )
-
 @app.route("/ingest", methods=["POST"])
 def ingest():
     """Endpoint to receive logs from collectors"""
     try:
-        data = request.json
+        # Debug: Print incoming request data
+        print(f"Incoming request headers: {request.headers}")
+        print(f"Incoming request data: {request.data}")
         
+        # Ensure proper JSON content type
+        if not request.is_json:
+            logging.warning("Request is not JSON")
+            return jsonify({"status": "error", "message": "Content-Type must be application/json"}), 400
+
+        data = request.get_json(force=True)
+        if data is None:
+            logging.warning("Invalid JSON data received")
+            return jsonify({"status": "error", "message": "Invalid JSON data"}), 400
+
         # Handle both single log and batch formats
+        logs = []
         if "log_line" in data:
             # Single log format
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -523,29 +536,42 @@ def ingest():
                 "id": f"{source}_{timestamp}_{hash(log_line) % 10000}",
                 "timestamp": timestamp,
                 "log_line": log_line,
-                "source": source
+                "source": source,
+                "severity": determine_severity(log_line)
             }]
         elif "logs" in data:
             # Batch format
             logs = data.get("logs", [])
+            # Add severity if missing
+            for log in logs:
+                if "severity" not in log:
+                    log["severity"] = determine_severity(log.get("log_line", ""))
         else:
+            logging.warning("Invalid log format received")
             return jsonify({"status": "error", "message": "Invalid log format"}), 400
+
+        # Debug: Print processed logs
+        print(f"Processing {len(logs)} logs")
         
         # Process logs
         save_logs_to_db(logs)
         alerts = check_for_alerts(logs)
-        anomalies = detect_anomalies(logs)
+        rule_anomalies = detect_anomalies(logs)
+        ml_anomalies = detect_unsupervised_anomalies(logs)
         
+        for anomaly in ml_anomalies:
+            save_anomaly_to_db(anomaly)
+
         return jsonify({
             "status": "ok",
             "processed": len(logs),
             "alerts": len(alerts),
-            "anomalies": len(anomalies)
+            "anomalies": len(rule_anomalies + ml_anomalies)
         })
-    except Exception as e:
-        logging.error(f"Error processing logs: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
 
+    except Exception as e:
+        logging.error(f"Error processing logs: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
 @app.route("/api/update_logs")
 def update_logs():
     """API endpoint for real-time log updates"""
@@ -619,3 +645,7 @@ def cleanup_old_logs():
         
         # Sleep for 1 day before next cleanup
         time.sleep(86400)
+if __name__ == "__main__":
+    init_db()
+    threading.Thread(target=cleanup_old_logs, daemon=True).start()
+    app.run(debug=True, port=5020)
