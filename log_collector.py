@@ -6,7 +6,6 @@ import json
 import hashlib
 from datetime import datetime
 import logging
-
 # Configure logging for the collector itself
 logging.basicConfig(
     level=logging.INFO,
@@ -15,8 +14,8 @@ logging.basicConfig(
 )
 
 # Configuration
-LOG_FILE_PATH = "/var/log/system.log"  # For macOS
-SERVER_URL = "http://localhost:5000/ingest"
+LOG_FILE_PATH = "/var/log/system.log"  
+SERVER_URL = "http://localhost:5020/ingest"
 BATCH_SIZE = 10  # Number of logs to batch before sending
 POSITION_FILE = ".log_position"  # File to track position between restarts
 RETRY_INTERVAL = 5  # Seconds between retries on connection failure
@@ -75,22 +74,39 @@ def generate_log_id(log_line, source):
 
 def send_logs(logs_batch):
     """Send a batch of logs to the server with retry logic"""
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'SIEM-Log-Collector/1.0'
+    }
+    
     for attempt in range(MAX_RETRIES):
         try:
-            response = requests.post(SERVER_URL, json={"logs": logs_batch})
+            print(f"Attempt {attempt + 1}: Sending {len(logs_batch)} logs")  # Debug
+            
+            response = requests.post(
+                SERVER_URL,
+                json={"logs": logs_batch},
+                headers=headers,
+                timeout=5
+            )
+            
+            print(f"Response status: {response.status_code}")  # Debug
+            print(f"Response content: {response.text}")  # Debug
+            
             if response.status_code == 200:
                 logging.info(f"Successfully sent {len(logs_batch)} logs")
                 return True
             else:
-                logging.warning(f"Failed to send logs: HTTP {response.status_code}")
+                logging.warning(f"Failed to send logs: HTTP {response.status_code}, Response: {response.text}")
+                
         except Exception as e:
-            logging.error(f"Exception sending logs (attempt {attempt+1}/{MAX_RETRIES}): {e}")
+            logging.error(f"Exception sending logs (attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}")
         
         if attempt < MAX_RETRIES - 1:
             time.sleep(RETRY_INTERVAL)
     
     return False
-
 def main():
     """Main function to collect and send logs"""
     logging.info(f"Starting log collector for {LOG_FILE_PATH}")
